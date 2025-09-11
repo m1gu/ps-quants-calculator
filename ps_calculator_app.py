@@ -11,8 +11,8 @@ from PyQt5.QtWidgets import (
     QSplitter, QListWidget, QListWidgetItem,
     QDateEdit # Added for date input
 )
-from PyQt5.QtGui import QDoubleValidator, QFont, QColor
-from PyQt5.QtCore import Qt, QDate
+from PyQt5.QtGui import QDoubleValidator, QFont, QColor, QKeySequence
+from PyQt5.QtCore import Qt, QDate, QEvent
 from openpyxl.utils import get_column_letter # Import for autofit
 
 LOQ = 0.1 # Limit of Quantitation
@@ -373,6 +373,7 @@ class PSCalculatorApp(QWidget):
             amount_input = QLineEdit("0") # Default to 0
             amount_input.setValidator(double_validator)
             amount_input.textChanged.connect(self._update_results_table) # Connect signal
+            amount_input.installEventFilter(self)  # Enable multi-cell paste
             self.analytes_table.setCellWidget(row, 1, amount_input)
             self.analyte_amount_inputs[analyte_name] = amount_input # Store reference
 
@@ -738,6 +739,69 @@ class PSCalculatorApp(QWidget):
                  status_item.setForeground(QColor('darkgreen'))
             # Status is column 5 after removing LOD
             self.analytes_table.setItem(row, 5, status_item)
+
+    # --- Pasting helpers ---
+    def eventFilter(self, obj, event):
+        """Enable multi-cell paste into the Analyte Amount column.
+        If clipboard has multiple lines or tabs and focus is on an amount QLineEdit,
+        paste values downwards starting at the focused row.
+        """
+        try:
+            if event.type() == QEvent.KeyPress and isinstance(obj, QLineEdit):
+                # Only handle Ctrl+V (Paste) on analyte amount inputs
+                if event.matches(QKeySequence.Paste):
+                    # Ensure this line edit is one of our amount inputs
+                    if obj in self.analyte_amount_inputs.values():
+                        text = QApplication.clipboard().text()
+                        # Only intercept when multi-cell-like content
+                        if ('\n' in text) or ('\t' in text) or ('\r' in text):
+                            self._paste_values_into_amounts(obj, text)
+                            return True  # Event handled
+        except Exception as e:
+            # Fallback: do not block default behavior on errors
+            print(f"Paste event handling error: {e}")
+        return super().eventFilter(obj, event)
+
+    def _paste_values_into_amounts(self, start_widget, text):
+        """Paste clipboard values into the Amount column starting at the row of start_widget.
+        Accepts Excel-like data: rows separated by newlines, columns by tabs. Uses first column.
+        """
+        # Find starting row from the focused amount widget
+        start_row = 0
+        for r in range(self.analytes_table.rowCount()):
+            if self.analytes_table.cellWidget(r, 1) is start_widget:
+                start_row = r
+                break
+
+        # Normalize lines, split into rows
+        lines = [line for line in text.splitlines() if line is not None]
+        if not lines:
+            return
+
+        # Extract first column per line (tab-delimited); trim spaces
+        values = []
+        for line in lines:
+            if '\t' in line:
+                cell = line.split('\t', 1)[0]
+            else:
+                cell = line
+            cell = cell.strip()
+            # Treat blanks as 0 for convenience
+            values.append('0' if cell == '' else cell)
+
+        # Paste values downward; block signals for performance, update once
+        last_row = self.analytes_table.rowCount()
+        for i, val in enumerate(values):
+            row = start_row + i
+            if row >= last_row:
+                break
+            w = self.analytes_table.cellWidget(row, 1)
+            if isinstance(w, QLineEdit):
+                w.blockSignals(True)
+                w.setText(val)
+                w.blockSignals(False)
+        # Single refresh
+        self._update_results_table()
 
     def export_results(self):
         """Exports the current table data to an Excel file."""
