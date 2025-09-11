@@ -1,0 +1,8 @@
+name: ps_calculator_env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pyqt
+  - pandas
+  - openpyxl
