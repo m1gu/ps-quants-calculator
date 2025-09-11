@@ -17,68 +17,6 @@ from openpyxl.utils import get_column_letter # Import for autofit
 
 LOQ = 0.1 # Limit of Quantitation
 
-LOD_VALUES = {
-    "Abamectin": 0.042,
-    "Acephate": 0.015,
-    "Acequinocyl": 0.011,
-    "Acetamiprid": 0.014,
-    "Aldicarb": 0.02,
-    "Azoxystrobin": 0.02,
-    "Bifenazate": 0.031,
-    "Bifenthrin": 0.009,
-    "Boscalid": 0.012,
-    "Carbaryl": 0.011,
-    "Carbofuran": 0.01,
-    "Chlorantraniliprole": 0.018,
-    "Chlorfenapyr": 0.091,
-    "Chlorpyrifos": 0.011,
-    "Clofentezine": 0.019,
-    "Cyfluthrin": 0.022,
-    "Cypermethrin": 0.02,
-    "Daminozide": 0.015,
-    "Diazinon": 0.01,
-    "Dichlorvos": 0.027,
-    "Dimethoate": 0.008,
-    "Ethoprophos": 0.009,
-    "Etofenprox": 0.012,
-    "Etoxazole": 0.015,
-    "Fenoxycarb": 0.013,
-    "Fenpyroximate": 0.013,
-    "Fipronil": 0.035,
-    "Flonicamid": 0.014,
-    "Fludioxonil": 0.02,
-    "Hexythiazox": 0.021,
-    "Imazalil": 0.013,
-    "Imidacloprid": 0.011,
-    "Kresoxim-methyl": 0.018,
-    "Malathion A": 0.016,
-    "Metalaxyl": 0.024,
-    "Methiocarb": 0.009,
-    "Methomyl": 0.025,
-    "Methyl parathion": 0.09,
-    "MGK 264": 0.041,
-    "Myclobutanil": 0.018,
-    "Naled": 0.023, # Corrected missing leading 0
-    "Oxamyl": 0.01,
-    "Paclobutrazol": 0.006,
-    "Permethrins*": 0.01,
-    "Phosmet": 0.017,
-    "Piperonyl butoxide": 0.013,
-    "Prallethrin": 0.014,
-    "Propiconazole": 0.032,
-    "Propoxure": 0.021,
-    "Pyrethrins*": 0.019,
-    "Pyridaben": 0.011,
-    "Spinosad*": 0.015,
-    "Spiromesifen": 0.007,
-    "Spirotetramat": 0.016,
-    "Spiroxamine": 0.012,
-    "Tebuconazole": 0.011,
-    "Thiacloprid": 0.012,
-    "Thiamethoxam": 0.009,
-    "Trifloxystrobin": 0.009
-}
-
 STATE_LIMITS = {
     "Abamectin": 0.5,
     "Acephate": 0.4,
@@ -414,9 +352,10 @@ class PSCalculatorApp(QWidget):
 
         self.analytes_table = QTableWidget()
         self.analytes_table.setRowCount(len(ANALYTES))
-        self.analytes_table.setColumnCount(7) # Increased column count again
+        # Remove LOD column: now 6 columns
+        self.analytes_table.setColumnCount(6)
         self.analytes_table.setHorizontalHeaderLabels([
-            "Analyte Name", "Amount", "LOD", "LOQ", "State Limit", "Final Result", "Status"
+            "Analyte Name", "Amount", "LOQ", "State Limit", "Final Result", "Status"
         ])
         self.analytes_table.setAlternatingRowColors(True)
         # Make specific columns read-only, allow editing Amount
@@ -437,47 +376,39 @@ class PSCalculatorApp(QWidget):
             self.analytes_table.setCellWidget(row, 1, amount_input)
             self.analyte_amount_inputs[analyte_name] = amount_input # Store reference
 
-            # LOD (read-only)
-            lod_value = LOD_VALUES.get(analyte_name, 0.0)
-            lod_item = QTableWidgetItem(str(lod_value))
-            lod_item.setFlags(lod_item.flags() & ~Qt.ItemIsEditable)
-            lod_item.setTextAlignment(Qt.AlignCenter)
-            self.analytes_table.setItem(row, 2, lod_item) # LOD is column 2
-
-            # LOQ (read-only)
+            # LOQ (read-only) - moves to column 2
             loq_item = QTableWidgetItem(str(LOQ))
             loq_item.setFlags(loq_item.flags() & ~Qt.ItemIsEditable)
             loq_item.setTextAlignment(Qt.AlignCenter)
-            self.analytes_table.setItem(row, 3, loq_item) # LOQ is column 3
+            self.analytes_table.setItem(row, 2, loq_item) # LOQ is column 2
 
             # State Limit (read-only)
             state_limit = STATE_LIMITS.get(analyte_name, 0.0) # Get limit, default 0 if not found
             limit_item = QTableWidgetItem(str(state_limit))
             limit_item.setFlags(limit_item.flags() & ~Qt.ItemIsEditable)
             limit_item.setTextAlignment(Qt.AlignCenter)
-            self.analytes_table.setItem(row, 4, limit_item) # State Limit is column 4
+            self.analytes_table.setItem(row, 3, limit_item) # State Limit is column 3
 
             # Final Result (read-only, initially ND)
             result_item = QTableWidgetItem("ND") # Default to ND
             result_item.setFlags(result_item.flags() & ~Qt.ItemIsEditable)
             result_item.setTextAlignment(Qt.AlignCenter)
-            self.analytes_table.setItem(row, 5, result_item) # Final Result is column 5
+            self.analytes_table.setItem(row, 4, result_item) # Final Result is column 4
 
             # Status (read-only, initially '-')
             status_item = QTableWidgetItem("-") # Default to Pass since result is ND
             status_item.setFlags(status_item.flags() & ~Qt.ItemIsEditable)
             status_item.setTextAlignment(Qt.AlignCenter)
-            self.analytes_table.setItem(row, 6, status_item) # Status is column 6
+            self.analytes_table.setItem(row, 5, status_item) # Status is column 5
 
         # Resize columns
         header = self.analytes_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.Stretch) # Analyte Name stretch
         header.setSectionResizeMode(1, QHeaderView.ResizeToContents) # Amount content size
-        header.setSectionResizeMode(2, QHeaderView.ResizeToContents) # LOD content size
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents) # LOQ content size
-        header.setSectionResizeMode(4, QHeaderView.ResizeToContents) # State Limit content size
-        header.setSectionResizeMode(5, QHeaderView.ResizeToContents) # Final Result content size
-        header.setSectionResizeMode(6, QHeaderView.ResizeToContents) # Status content size
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents) # LOQ content size
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents) # State Limit content size
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents) # Final Result content size
+        header.setSectionResizeMode(5, QHeaderView.ResizeToContents) # Status content size
         self.analytes_table.verticalHeader().setVisible(False) # Hide row numbers
         self.analytes_table.verticalHeader().setDefaultSectionSize(22) # Set smaller row height
 
@@ -746,7 +677,6 @@ class PSCalculatorApp(QWidget):
                 amount_input_widget = self.analyte_amount_inputs[analyte_name]
                 amount_text = amount_input_widget.text().strip()
                 analyte_amount = float(amount_text) if amount_text else 0.0
-                lod_value = LOD_VALUES.get(analyte_name, 0.0) # Get LOD for comparison
                 result_numeric = 0.0 # Initialize numeric result
 
                 if analyte_amount == 0.0:
@@ -754,11 +684,9 @@ class PSCalculatorApp(QWidget):
                 else:
                     if mass_is_valid:
                         result_numeric = (analyte_amount * (dilution_factor / mass_in_grams)) / 1000
-                        # ND < LOD <= BQL < LOQ <= Number
-                        if result_numeric < lod_value:
+                        # With LOD/BQL removed: ND if below LOQ, else numeric
+                        if result_numeric < LOQ:
                             final_result_str = "ND"
-                        elif result_numeric < LOQ:
-                            final_result_str = "BQL"
                         else:
                             final_result_str = "{:.3g}".format(result_numeric)
                     else:
@@ -772,20 +700,21 @@ class PSCalculatorApp(QWidget):
             result_item.setFlags(result_item.flags() & ~Qt.ItemIsEditable)
             result_item.setTextAlignment(Qt.AlignCenter)
 
-            # Color item green if ND or BQL
-            if final_result_str in ("ND", "BQL"):
+            # Color item green if ND
+            if final_result_str == "ND":
                 result_item.setBackground(QColor('lightgreen'))
             else:
-                # Ensure background is cleared if result changes from ND/BQL to a number
+                # Ensure background is cleared if result changes from ND to a number
                 result_item.setBackground(QColor('white')) # Or match alternating color if needed
 
-            self.analytes_table.setItem(row, 5, result_item)
+            # Final Result is column 4 after removing LOD
+            self.analytes_table.setItem(row, 4, result_item)
 
             # --- Calculate and Set Status --- 
             status_str = "-"
             state_limit = STATE_LIMITS.get(analyte_name, float('inf')) # Default to infinity if no limit
 
-            if final_result_str in ("ND", "BQL"): # ND and BQL are Pass
+            if final_result_str == "ND": # ND is Pass
                 status_str = "Pass"
             elif final_result_str in ("-", "Invalid Mass", "Invalid Amt", "Error"):
                 status_str = "-" # Keep as is for errors
@@ -807,8 +736,8 @@ class PSCalculatorApp(QWidget):
                  status_item.setForeground(QColor('red'))
             elif status_str == "Pass":
                  status_item.setForeground(QColor('darkgreen'))
-
-            self.analytes_table.setItem(row, 6, status_item) # Update Status column (index 6)
+            # Status is column 5 after removing LOD
+            self.analytes_table.setItem(row, 5, status_item)
 
     def export_results(self):
         """Exports the current table data to an Excel file."""
@@ -839,20 +768,20 @@ class PSCalculatorApp(QWidget):
             except ValueError:
                 QMessageBox.warning(self, "Data Error", f"Invalid amount '{amount_text}' for {analyte_name} found in table. Skipping row in export.")
                 continue
-            lod_item = self.analytes_table.item(row, 2) # Get LOD from table
-            lod_text = lod_item.text() if lod_item else "N/A"
-            final_result_item = self.analytes_table.item(row, 5) # Index updated
+            # Read from table with updated indices (no LOD column)
+            loq_item = self.analytes_table.item(row, 2)
+            loq_text = loq_item.text() if loq_item else str(LOQ)
+            final_result_item = self.analytes_table.item(row, 4)
             final_result_text = final_result_item.text() if final_result_item else "-"
-            state_limit_item = self.analytes_table.item(row, 4) # Index updated
+            state_limit_item = self.analytes_table.item(row, 3)
             state_limit_text = state_limit_item.text() if state_limit_item else "N/A"
-            status_item = self.analytes_table.item(row, 6) # Index updated
+            status_item = self.analytes_table.item(row, 5)
             status_text = status_item.text() if status_item else "-"
 
             export_data.append({
                 "Analyte Name": analyte_name,
                 "Analyte Amount": analyte_amount,
-                "LOD": lod_text, # Add LOD
-                "LOQ": LOQ,
+                "LOQ": loq_text,
                 "State Limit": state_limit_text,
                 "Final Result": final_result_text,
                 "Status": status_text
@@ -867,8 +796,8 @@ class PSCalculatorApp(QWidget):
             QMessageBox.warning(self, "Export Error", "No data to export.")
             return
         df_results = pd.DataFrame(export_data)
-        # Update columns for export
-        df_results = df_results[["Analyte Name", "Analyte Amount", "LOD", "LOQ", "State Limit", "Final Result", "Status"]]
+        # Update columns for export (LOD removed)
+        df_results = df_results[["Analyte Name", "Analyte Amount", "LOQ", "State Limit", "Final Result", "Status"]]
         today_date = datetime.date.today().strftime("%Y%m%d")
         safe_sample_number = "".join(c for c in sample_number if c.isalnum() or c in ('_', '-')).rstrip()
         if not safe_sample_number:
@@ -928,7 +857,7 @@ class PSCalculatorApp(QWidget):
         """Copies the 'Final Result' column to the clipboard."""
         final_results = []
         for row in range(self.analytes_table.rowCount()):
-            item = self.analytes_table.item(row, 5) # Column index updated to 5
+            item = self.analytes_table.item(row, 4) # Final Result column index after removing LOD
             if item:
                 final_results.append(item.text())
             else:
