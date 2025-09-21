@@ -5,6 +5,7 @@ import datetime
 import sqlite3
 import json
 import math
+import re
 
 
 from PyQt5.QtWidgets import (
@@ -22,7 +23,7 @@ from openpyxl.utils import get_column_letter
 # =========================
 # Por defecto: procesa TODOS los samples con YES (puedes pasar un número para limitar)
 DEFAULT_BATCH_LIMIT = None
-RAW_SHEET_NAME = "CON raw results"        # hoja de entrada del Excel
+RAW_SHEET_NAME = "raw results"        # hoja de entrada del Excel
 
 # =========================
 # LÓGICA EXISTENTE
@@ -874,6 +875,16 @@ class PSCalculatorApp(QWidget):
     # NUEVAS FUNCIONES (Batch)
     # ============================
     @staticmethod
+    def _extract_batch_date_from_path(file_path):
+        """Devuelve la fecha YYYYMMDD embebida en el nombre del archivo o None."""
+        base_name = os.path.basename(file_path)
+        name_part, _ = os.path.splitext(base_name)
+        match = re.search(r'([0-9]{8})', name_part)
+        if match:
+            return match.group(1)
+        return None
+
+    @staticmethod
     def _normalize_sample_id_text(x):
         """
         Normaliza el Sample Number:
@@ -1048,6 +1059,13 @@ class PSCalculatorApp(QWidget):
 
         df = self._read_raw_results_excel(xlsx_path)
 
+        batch_date = None
+        date_str = self._extract_batch_date_from_path(xlsx_path)
+        if date_str:
+            parsed_date = QDate.fromString(date_str, "yyyyMMdd")
+            if parsed_date.isValid():
+                batch_date = parsed_date
+
         # 1) Filtra SOLO filas YES
         df_yes = df[df['include']].copy()
         if df_yes.empty:
@@ -1056,6 +1074,7 @@ class PSCalculatorApp(QWidget):
         # 2) Lista explícita de samples únicos (en orden de aparición), normalizados
         samples_unique = list(dict.fromkeys(df_yes['sample'].tolist()))
         if not samples_unique:
+            self.load_samples_table()
             return 0
 
         # Si se especifica un límite, recorta la lista; si no, procesa todos
@@ -1097,7 +1116,10 @@ class PSCalculatorApp(QWidget):
             # ======= RELLENAR UI PARA ESTE SAMPLE =======
             safe_sample = self._normalize_sample_id_text(sample)
             self.sample_input.setText(safe_sample)
-            self.sample_date_input.setDate(QDate.currentDate())
+            if batch_date is not None:
+                self.sample_date_input.setDate(batch_date)
+            else:
+                self.sample_date_input.setDate(QDate.currentDate())
 
             # Mass (mg) tal cual
             if mass_val is not None and not pd.isna(mass_val):
@@ -1123,6 +1145,7 @@ class PSCalculatorApp(QWidget):
 
             processed += 1
 
+        self.load_samples_table()
         return processed
 
 
