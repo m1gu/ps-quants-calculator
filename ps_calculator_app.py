@@ -45,6 +45,12 @@ STATE_LIMITS = {
     "Spiroxamine": 0.4, "Tebuconazole": 0.4, "Thiacloprid": 0.2, "Thiamethoxam": 0.2, "Trifloxystrobin": 0.2
 }
 ANALYTES = list(STATE_LIMITS.keys())
+ANALYTE_ALIAS_MAP = {
+    "Permethrins": "Permethrins*",
+    "Pyrethrins": "Pyrethrins*",
+    "Spinosad": "Spinosad*",
+}
+ANALYTE_NAME_SET = set(ANALYTES)
 DB_NAME = "saved_samples.db"
 
 STYLESHEET = """
@@ -984,9 +990,39 @@ class PSCalculatorApp(QWidget):
 
     @staticmethod
     def _map_component_to_analyte(component_name: str) -> str:
-        """'Propiconazole 1' -> 'Propiconazole' (quita sufijo ' 1' si existe)."""
-        component_name = component_name.strip()
-        return component_name[:-2].strip() if component_name.endswith(" 1") else component_name
+        """Normaliza etiquetas de componentes para coincidir con ANALYTES."""
+        name = component_name.strip()
+        if not name:
+            return ""
+
+        name = re.sub(r"\s+", " ", name)
+        tokens = name.split(" ")
+
+        def is_suffix_token(token: str) -> bool:
+            clean = token.strip()
+            if not clean:
+                return False
+            clean = clean.strip("()[]{}.,;:-")
+            if not clean:
+                return False
+            if clean.isdigit():
+                return True
+            return bool(re.fullmatch(r"[IVXLCDM]+", clean.upper()))
+
+        while tokens:
+            candidate = " ".join(tokens)
+            mapped = ANALYTE_ALIAS_MAP.get(candidate, candidate)
+            if mapped in ANALYTE_NAME_SET:
+                return mapped
+            if not is_suffix_token(tokens[-1]):
+                break
+            tokens.pop()
+
+        base_candidate = " ".join(tokens).strip()
+        mapped = ANALYTE_ALIAS_MAP.get(base_candidate, base_candidate)
+        if mapped in ANALYTE_NAME_SET:
+            return mapped
+        return mapped or component_name.strip()
 
     def _fill_amounts_from_dict(self, analyte_to_amount):
         """Pone 0 en todos y luego llena los analitos presentes con sus Amounts."""
